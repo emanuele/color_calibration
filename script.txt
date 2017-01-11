@@ -1,0 +1,90 @@
+# How to profile a printer with a camera and a test chart.
+
+
+# Take a printed (physical) test chart, for example:
+GretagMacBeth i1_RGB_Scan_1.4 , sold with the I1 PRO
+
+# Retrive the description of the test chart from Argyll distribution:
+ref/i1_RGB_Scan_1.4.cht
+
+# Retrieve the .cie file related to the target. The .cie file
+# describes the test chart from the spectrophotometer point of
+# view. So the .cie file is just the .ti3 file renamed, that can be
+# measured with the spectrophotometer on the test chart with
+# chartread. Note: for the test chart i1_RGB_Scan_1.4 the .cie file is
+# not available so it must be read with chartread.
+chartread -n i1_RGB_Scan_1.4
+mv i1_RGB_Scan_1.4.ti3 i1_RGB_Scan_1.4.cie
+
+# take a picture of the test chart in FULLY REPRODUCIBLE conditions
+# (lights, camera settings etc.). If shooting RAW, postprocess with
+# FULLY REPRODUCIBLE steps. At the end you obtain a .tif file. A 16bit
+# TIFF file is more useful than an 8bit one, at this stage.
+i1_RGB_Scan_1.4_camera.tif
+
+# Read patches of the test chart from the .tif file
+scanin -v i1_RGB_Scan_1.4_camera.tif i1_RGB_Scan_1.4.cht i1_RGB_Scan_1.4.cie
+
+# The previous step results in a .ti3 file:
+i1_RGB_Scan_1.4_camera.ti3
+
+# Create an XYZ PCS LUT based profile for the camera:
+colprof -v -D"<CAMERA MODEL>" -qh -u -ax i1_RGB_Scan_1.4_camera
+
+# The previous step results in a .icc profile:
+i1_RGB_Scan_1.4_camera.icc
+
+
+# The quality of the profile in terms of DeltaE can be obtained with:
+profcheck -v2 -k -w i1_RGB_Scan_1.4_camera.ti3 i1_RGB_Scan_1.4_camera.icc
+
+# Check the last lines of the output of the previous step. Avg DeltaE
+# should be lower than 2 and max DeltaE should be lower than 10. More
+# or less :)
+
+
+#################################################################
+Now we proceed to calibrate the printer with the camera
+#################################################################
+
+# With the obtained profile, the camera is ready to be used for
+# calibrating the printer.
+
+# Generate the description of the target, for example:
+targen -v -d2 -c vendor_profile/SP950PGPP.icm -G -e8 -g256 -f1300 i1proTarget
+
+# create the tiff target with the additional flag -s in order to
+# output also the .cht file necessary for the scanner/camera
+printtarg -v -ii1 -L -R1 -m7 -M7 -t360 -P -p445x310 -s i1proTarget
+
+# In the previous step you obtain two files: the .tif target and its
+# description as .cht file to allow the automatic reading of the
+# patches from the picture obtain with the camera in the next steps:
+i1proTarget.tif
+i1proTarget.cht
+
+# print the target with the printer
+
+# Take a picture of the printed target IN EXACTLY THE SAME conditions
+# of the test chart above. If shooting RAW, postprocess with EXACTLY
+# THE SAME steps used for the picture of the test chart. In the end
+# you need to obtain a .tif file, preferably 16bit.
+i1proTarget_camera.tif
+
+# Read the patches of the obtained .tif, taking into account its .cht
+# desciption and the camera profile:
+scanin -v -c i1proTarget_camera.tif i1proTarget.cht i1_RGB_Scan_1.4_camera.icc i1proTarget
+
+# The result of the previous step is the .ti3 file of the patches read
+# from the target with the camera:
+i1proTarget.ti3
+
+# The profile of the printer can now be obtained with:
+colprof -v -qh -r1.0 -S AdobeRGB.icc -cmt -dpp -A "<Printer Vendor>" -M "<Printer Model>" -D"<Printer name, paper, settings, etc.>" i1proTarget
+
+# The quality of the profile in terms of DeltaE can be obtained with:
+profcheck -v2 -k -w i1proTarget.ti3 i1proTarget.icc
+
+# Check the last lines of the output of the previous step. Avg DeltaE
+# should be lower than 2 and max DeltaE should be lower than 10. More
+# or less :)
